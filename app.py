@@ -1,29 +1,22 @@
 from flask import Flask, request, Response, render_template
-from openai import OpenAI
+import requests
+import json
 import logging
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # API Configurations
-API_ENDPOINT_1 = 'http://ssb.org.cn:10035/v1'
-API_KEY_1 = 'UgC44uW-z-fLNadND-fL81yBXYG3B2T9fIWHFuEnWAA'
+API_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions'
+API_KEY = 'sk-ksncqzuvrauhnvxptgzpxbesbmpgugjvmedekmlqrnpjxpaa'
 
-API_ENDPOINT_2 = 'http://ssb.org.cn:10099/v1'
-API_KEY_2 = 'UgC44uW-z-fLNadND-fL81yBXYG3B2T9fIWHFuEnWAA'
+def create_headers():
+    return {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
 
-# Initialize OpenAI clients
-client1 = OpenAI(
-    base_url=API_ENDPOINT_1,
-    api_key=API_KEY_1
-)
-
-client2 = OpenAI(
-    base_url=API_ENDPOINT_2,
-    api_key=API_KEY_2
-)
-
-@app.route('/bingte')
+@app.route('/')
 def index():
     return render_template('index.html')
 
@@ -35,22 +28,52 @@ def generate():
     
     def generate_stream():
         try:
-            completion = client1.chat.completions.create(
-                model="Claude-3.5-Sonnet",
-                messages=[{"role": "user", "content": prompt}],
+            payload = {
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": True,
+                "temperature": 0.7
+            }
+            
+            response = requests.post(
+                API_ENDPOINT,
+                headers=create_headers(),
+                json=payload,
                 stream=True
             )
             
+            if response.status_code != 200:
+                error_msg = f"API error: {response.status_code} - {response.text}"
+                app.logger.error(error_msg)
+                yield error_msg
+                return
+
             app.logger.debug("Stream created successfully for gen")
             
-            for chunk in completion:
-                if chunk.choices[0].delta.content is not None:
-                    app.logger.debug(f"Yielding chunk: {chunk.choices[0].delta.content}")
-                    yield chunk.choices[0].delta.content
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith("data: "):
+                        line = line[6:]
+                    
+                    if line.strip() == '[DONE]':
+                        continue
+                    
+                    try:
+                        json_data = json.loads(line)
+                        if 'choices' in json_data and len(json_data['choices']) > 0:
+                            content = json_data['choices'][0].get('delta', {}).get('content')
+                            if content:
+                                app.logger.debug(f"Yielding chunk: {content}")
+                                yield content
+                    except json.JSONDecodeError as e:
+                        app.logger.error(f"JSON decode error: {e}")
+                        continue
                     
         except Exception as e:
-            app.logger.error(f"Error in generate_stream: {e}")
-            yield f"Error: {str(e)}"
+            error_msg = f"Error in generate_stream: {str(e)}"
+            app.logger.error(error_msg)
+            yield error_msg
     
     return Response(generate_stream(), mimetype='text/plain')
 
@@ -62,22 +85,52 @@ def generate2():
     
     def generate_stream():
         try:
-            completion = client2.chat.completions.create(
-                model="Qwen2.5-72B-I-128K",
-                messages=[{"role": "user", "content": prompt}],
+            payload = {
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": True,
+                "temperature": 0.7
+            }
+            
+            response = requests.post(
+                API_ENDPOINT,
+                headers=create_headers(),
+                json=payload,
                 stream=True
             )
             
+            if response.status_code != 200:
+                error_msg = f"API error: {response.status_code} - {response.text}"
+                app.logger.error(error_msg)
+                yield error_msg
+                return
+
             app.logger.debug("Stream created successfully for gen2")
             
-            for chunk in completion:
-                if chunk.choices[0].delta.content is not None:
-                    app.logger.debug(f"Yielding chunk: {chunk.choices[0].delta.content}")
-                    yield chunk.choices[0].delta.content
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith("data: "):
+                        line = line[6:]
+                    
+                    if line.strip() == '[DONE]':
+                        continue
+                    
+                    try:
+                        json_data = json.loads(line)
+                        if 'choices' in json_data and len(json_data['choices']) > 0:
+                            content = json_data['choices'][0].get('delta', {}).get('content')
+                            if content:
+                                app.logger.debug(f"Yielding chunk: {content}")
+                                yield content
+                    except json.JSONDecodeError as e:
+                        app.logger.error(f"JSON decode error: {e}")
+                        continue
                     
         except Exception as e:
-            app.logger.error(f"Error in generate_stream: {e}")
-            yield f"Error: {str(e)}"
+            error_msg = f"Error in generate_stream: {str(e)}"
+            app.logger.error(error_msg)
+            yield error_msg
     
     return Response(generate_stream(), mimetype='text/plain')
 

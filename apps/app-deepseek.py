@@ -7,8 +7,8 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # API Configurations
-API_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions'
-API_KEY = 'sk-xxxxx'
+API_ENDPOINT = 'https://api.siliconflow.cn/v1'
+API_KEY = 'sk-ksncqzuvrauhnvxptgzpxbesbmpgugjvmedekmlqrnpjxpaa'
 
 def create_headers():
     return {
